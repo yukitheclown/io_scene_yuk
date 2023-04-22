@@ -12,13 +12,13 @@ def GetMesh(obj, context, GLOBAL_MATRIX):
 	mesh = None
 
 	try:
-		mesh = obj.to_mesh()
+		mesh = obj.to_mesh(preserve_all_data_layers=True, depsgraph=None)
 	except RuntimeError:
 		return
 
-	# if GLOBAL_MATRIX:
-	# 	mesh.transform(GLOBAL_MATRIX * obj.matrix_world)
-	# else:
+	if GLOBAL_MATRIX:
+		mesh.transform(GLOBAL_MATRIX @ obj.matrix_world)
+	else:
 		mesh.transform(obj.matrix_world)
 
 	import bmesh
@@ -57,6 +57,7 @@ def WriteTexture(out, image):
 def WriteFile(out, context, bones, GLOBAL_MATRIX=None):
 
 	selected = context.selected_objects[0]
+	armatureObj = selected.find_armature()
 
 	mesh = GetMesh(selected, context, GLOBAL_MATRIX)
 
@@ -191,13 +192,13 @@ def WriteFile(out, context, bones, GLOBAL_MATRIX=None):
 			ctangent.normalize()
 
 			# fix for now elements thrown off by other values
-			packed = (v, (uvLayer[li].uv[0], uvLayer[li].uv[1]),
-				(1, 1, 1),
-				(1, 1, 1, 1))
-
 			# packed = (v, (uvLayer[li].uv[0], uvLayer[li].uv[1]),
-			# 	(normal.x, normal.y, normal.z),
-			# 	(ctangent.x, ctangent.y, ctangent.z, sign))
+			# 	(1, 1, 1),
+			# 	(1, 1, 1, 1))
+
+			packed = (v, (uvLayer[li].uv[0], uvLayer[li].uv[1]),
+				(normal.x, normal.y, normal.z),
+				(ctangent.x, ctangent.y, ctangent.z, sign))
 
 			val = vertMap.get(packed)
 			
@@ -229,9 +230,9 @@ def WriteFile(out, context, bones, GLOBAL_MATRIX=None):
 				for group in verts[packed[0]].groups:
 					if group.weight > 0:
 						
-						index = selected.vertex_groups[group.group].index
-
-						weights.append([group.weight, index])
+						index = bones.get(selected.vertex_groups[group.group].name)
+						if index != None:
+							weights.append([group.weight, float(index)])
 
 			if len(weights) < 4:
 				for j in range(len(weights), 4):
@@ -293,7 +294,7 @@ def WriteAnimation(out, action, armatureObj, bones, GLOBAL_MATRIX=None):
 
 			if setFrames[i] is False:
 				continue
-
+	
 			rot = list(bone.rotation_quaternion)
 			pos = list(bone.location)
 
@@ -328,7 +329,7 @@ def WriteSkeleton(out, context, selected, bones, mesh, GLOBAL_MATRIX=None):
 
 	armatureObj = selected.find_armature()
 
-	armatureMatrix = armatureObj.matrix_world
+	armatureMatrix = GLOBAL_MATRIX @ armatureObj.matrix_world
 
 	invBindMatrices = [mathutils.Matrix() for i in range(0, len(selected.vertex_groups))]
 	relativeMatrices = [mathutils.Matrix() for i in range(0, len(selected.vertex_groups))]
@@ -342,13 +343,12 @@ def WriteSkeleton(out, context, selected, bones, mesh, GLOBAL_MATRIX=None):
 		index = bones.get(armatureBone.name)
 
 		if armatureBone.parent is None:
-			relativeMatrices[index] = armatureMatrix * armatureBone.matrix_local
+			relativeMatrices[index] = armatureMatrix @ armatureBone.matrix_local
 		else:
 			parentMatrix = armatureBone.parent.matrix_local
-			relativeMatrices[index] = armatureBone.matrix_local
-			relativeMatrices[index] = parentMatrix.inverted() * relativeMatrices[index]
+			relativeMatrices[index] = parentMatrix.inverted() @ armatureBone.matrix_local
 				
-		invBindMatrices[index] = (armatureMatrix * armatureBone.matrix_local).inverted()
+		invBindMatrices[index] = (armatureMatrix @ armatureBone.matrix_local).inverted()
 
 
 	for vert in mesh.vertices:
@@ -364,15 +364,16 @@ def WriteSkeleton(out, context, selected, bones, mesh, GLOBAL_MATRIX=None):
 
 			if group.weight > 0:
 
-				index = selected.vertex_groups[group.group].index
+				index = bones.get(selected.vertex_groups[group.group].name)
 
-				if invMatrix is None:
-					invMatrix = invBindMatrices[index] * group.weight
-				else:
-					invMatrix += invBindMatrices[index] * group.weight
+				if index != None:
+					if invMatrix is None:
+						invMatrix = invBindMatrices[index] * group.weight
+					else:
+						invMatrix += invBindMatrices[index] * group.weight
 
-				if mostInfluence is None or mostInfluence[0] < group.weight:
-					mostInfluence = (group.weight, index)
+					if mostInfluence is None or mostInfluence[0] < group.weight:
+						mostInfluence = (group.weight, index)
 
 
 		if invMatrix is None:
@@ -381,6 +382,9 @@ def WriteSkeleton(out, context, selected, bones, mesh, GLOBAL_MATRIX=None):
 		vertex = invMatrix @ mathutils.Vector(vert.co).to_4d()
 
 		vertex /= vertex.w
+
+		if mostInfluence is None:
+			continue
 
 		cube = cubes[mostInfluence[1]]
 
@@ -451,7 +455,7 @@ def Export(operator, context, filepath, globalMatrix=None, exportAnim=True, expo
 			bones[poseBones[index].bone.name] = index
 			print(poseBones[index].bone.name, index)
 
-	if exportMesh:
+	if exportMesh and bones != None:
 	
 		out = bytearray()
 
