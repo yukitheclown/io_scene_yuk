@@ -5,6 +5,7 @@ import zlib
 import bpy
 import mathutils
 import bpy_extras.io_utils
+from bpy_extras import node_shader_utils
 
 def GetMesh(obj, context, GLOBAL_MATRIX):
 
@@ -73,6 +74,45 @@ def WriteFile(out, context, bones, GLOBAL_MATRIX=None):
 		texIndex = None
 		normTexIndex = None
 
+		image_map = {
+			"map_Kd": "base_color_texture",
+			"map_Bump": "normalmap_texture",
+		}
+
+		mat_wrap = node_shader_utils.PrincipledBSDFWrapper(mat) if mat else None
+
+		for key, mat_wrap_key in sorted(image_map.items()):
+			if mat_wrap_key is None:
+				continue
+			tex_wrap = getattr(mat_wrap, mat_wrap_key, None)
+			if tex_wrap is None:
+				continue
+
+			image = tex_wrap.image
+
+			if image is None:
+				continue
+
+			val = imagesMap.get(image.filepath)
+
+			if val is None:
+				topImageIndex += 1
+				imagesMap[image.filepath] = topImageIndex
+				val = topImageIndex
+				images.append(image)
+
+			if key == "map_Bump":	
+				normTexIndex = val
+			elif key == "map_Kd":
+				texIndex = val
+
+			if normTexIndex and texIndex:
+				break
+
+				# options = []
+				# if key == "map_Bump":
+					# if mat_wrap.normalmap_strength != 1.0:
+						# options.append('-bm %.6f' % mat_wrap.normalmap_strength)
 
 
 		out += struct.pack("<i", texIndex or 0)
@@ -151,7 +191,7 @@ def WriteFile(out, context, bones, GLOBAL_MATRIX=None):
 			ctangent.normalize()
 
 			# fix for now elements thrown off by other values
-			packed = (v, (0, 0),
+			packed = (v, (uvLayer[li].uv[0], uvLayer[li].uv[1]),
 				(1, 1, 1),
 				(1, 1, 1, 1))
 
