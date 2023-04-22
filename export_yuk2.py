@@ -11,13 +11,13 @@ def GetMesh(obj, context, GLOBAL_MATRIX):
 	mesh = None
 
 	try:
-		mesh = obj.to_mesh(context.scene, False, 'PREVIEW', calc_tessface=False)
+		mesh = obj.to_mesh()
 	except RuntimeError:
 		return
 
-	if GLOBAL_MATRIX:
-		mesh.transform(GLOBAL_MATRIX * obj.matrix_world)
-	else:
+	# if GLOBAL_MATRIX:
+	# 	mesh.transform(GLOBAL_MATRIX * obj.matrix_world)
+	# else:
 		mesh.transform(obj.matrix_world)
 
 	import bmesh
@@ -73,36 +73,13 @@ def WriteFile(out, context, bones, GLOBAL_MATRIX=None):
 		texIndex = None
 		normTexIndex = None
 
-		for mtex in mat.texture_slots:
 
-			if mtex and mtex.texture and mtex.texture.type == 'IMAGE' and len(mtex.texture.image.pixels):
-
-				image = mtex.texture.image
-
-				val = imagesMap.get(image.filepath)
-
-				if val is None:
-					topImageIndex += 1
-					imagesMap[image.filepath] = topImageIndex
-					val = topImageIndex
-					images.append(image)
-
-				if mtex.use_map_normal and normTexIndex == None:
-					normTexIndex = val
-				elif texIndex == None:
-					texIndex = val
-
-				if normTexIndex and texIndex:
-					break
-
-		out += struct.pack("<i", mat.subsurface_scattering.use)
 
 		out += struct.pack("<i", texIndex or 0)
 		out += struct.pack("<i", normTexIndex or 0)
 
-		color = (mat.diffuse_intensity * mat.diffuse_color)
+		color = mat.diffuse_color
 
-		out += struct.pack("<2f", ((mat.specular_hardness-1) / 510) * 100, mat.ambient)
 		out += struct.pack("<4f", color[0], color[1], color[2], 1)
 		out += struct.pack("<4f", mat.specular_color[0], mat.specular_color[1], mat.specular_color[2], mat.specular_intensity)
 
@@ -173,10 +150,14 @@ def WriteFile(out, context, bones, GLOBAL_MATRIX=None):
 			ctangent = tangent - tangent.dot(normal) * normal
 			ctangent.normalize()
 
+			# fix for now elements thrown off by other values
+			packed = (v, (0, 0),
+				(1, 1, 1),
+				(1, 1, 1, 1))
 
-			packed = (v, (uvLayer[li].uv[0], uvLayer[li].uv[1]),
-				(normal.x, normal.y, normal.z),
-				(ctangent.x, ctangent.y, ctangent.z, sign))
+			# packed = (v, (uvLayer[li].uv[0], uvLayer[li].uv[1]),
+			# 	(normal.x, normal.y, normal.z),
+			# 	(ctangent.x, ctangent.y, ctangent.z, sign))
 
 			val = vertMap.get(packed)
 			
@@ -193,14 +174,12 @@ def WriteFile(out, context, bones, GLOBAL_MATRIX=None):
 
 	out += struct.pack("<i", len(uniquePacked))
 
-	data = bytearray()
-
 	for packed in uniquePacked:
 
-		data += struct.pack("<3f", verts[packed[0]].co[0], verts[packed[0]].co[1], verts[packed[0]].co[2])
-		data += struct.pack("<2f", packed[1][0], packed[1][1])
-		data += struct.pack("<3f", packed[2][0], packed[2][1], packed[2][2])
-		data += struct.pack("<4f", packed[3][0], packed[3][1], packed[3][2], packed[3][3])
+		out += struct.pack("<3f", verts[packed[0]].co[0], verts[packed[0]].co[1], verts[packed[0]].co[2])
+		out += struct.pack("<2f", packed[1][0], packed[1][1])
+		out += struct.pack("<3f", packed[2][0], packed[2][1], packed[2][2])
+		out += struct.pack("<4f", packed[3][0], packed[3][1], packed[3][2], packed[3][3])
 
 		if bones:
 	
@@ -221,12 +200,12 @@ def WriteFile(out, context, bones, GLOBAL_MATRIX=None):
 
 			weights.sort(key=lambda tup: tup[0], reverse=True)
 
-			data += struct.pack("<4f", weights[0][0], weights[1][0], weights[2][0], weights[3][0])
-			data += struct.pack("<4f", weights[0][1], weights[1][1], weights[2][1], weights[3][1])
+			out += struct.pack("<4f", weights[0][0], weights[1][0], weights[2][0], weights[3][0])
+			out += struct.pack("<4f", weights[0][1], weights[1][1], weights[2][1], weights[3][1])
 
 
-	# out += zlib.compress(data, 9)[2:-4]
-	out += data
+	# out += zlib.compress(out, 9)[2:-4]
+	# out += data
 
 	for i in range(0, len(materialElements)):
 		if materialElements[i]:
@@ -410,9 +389,9 @@ def WriteSkeleton(out, context, selected, bones, mesh, GLOBAL_MATRIX=None):
 
 
 
-def Export(operator, context, filepath="", globalMatrix=None, exportAnim=False, exportMesh=False):
+def Export(operator, context, filepath, globalMatrix=None, exportAnim=True, exportMesh=True):
 
-	baseName, ext = os.path.splitext(filepath)
+	baseName = os.path.splitext(os.path.basename(filepath))[0]
 
 	if bpy.ops.object.mode_set.poll():
 		bpy.ops.object.mode_set(mode='OBJECT')
@@ -441,7 +420,7 @@ def Export(operator, context, filepath="", globalMatrix=None, exportAnim=False, 
 		if armatureObj:
 			WriteSkeleton(out, context, selected, bones, mesh, globalMatrix)
 
-		fp = open(baseName + ".yuk2", "wb")
+		fp = open(filepath, "wb")
 
 		fp.write(out)
 
