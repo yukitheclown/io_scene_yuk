@@ -328,7 +328,7 @@ def WriteSkeleton(out, context, selected, bones, mesh, GLOBAL_MATRIX=None):
 
 	armatureObj = selected.find_armature()
 
-	armatureMatrix = GLOBAL_MATRIX * armatureObj.matrix_world
+	armatureMatrix = armatureObj.matrix_world
 
 	invBindMatrices = [mathutils.Matrix() for i in range(0, len(selected.vertex_groups))]
 	relativeMatrices = [mathutils.Matrix() for i in range(0, len(selected.vertex_groups))]
@@ -356,7 +356,7 @@ def WriteSkeleton(out, context, selected, bones, mesh, GLOBAL_MATRIX=None):
 		if len(vert.groups) == 0:
 			continue
 
-		invMatrix = None
+		invMatrix = mathutils.Matrix()
 
 		mostInfluence = None
 
@@ -378,7 +378,7 @@ def WriteSkeleton(out, context, selected, bones, mesh, GLOBAL_MATRIX=None):
 		if invMatrix is None:
 			continue
 
-		vertex = invMatrix * mathutils.Vector(vert.co).to_4d()
+		vertex = invMatrix @ mathutils.Vector(vert.co).to_4d()
 
 		vertex /= vertex.w
 
@@ -431,7 +431,7 @@ def WriteSkeleton(out, context, selected, bones, mesh, GLOBAL_MATRIX=None):
 
 def Export(operator, context, filepath, globalMatrix=None, exportAnim=True, exportMesh=True):
 
-	baseName = os.path.splitext(os.path.basename(filepath))[0]
+	baseName = os.path.splitext(filepath)[0]
 
 	if bpy.ops.object.mode_set.poll():
 		bpy.ops.object.mode_set(mode='OBJECT')
