@@ -368,12 +368,9 @@ def WriteSkeleton(out, context, selected, bones, mesh, GLOBAL_MATRIX=None):
 				index = bones.get(selected.vertex_groups[group.group].name)
 
 				if index != None:
-					if invMatrix is None:
-						invMatrix = invBindMatrices[index] * group.weight
-					else:
-						invMatrix += invBindMatrices[index] * group.weight
 
 					if mostInfluence is None or mostInfluence[0] < group.weight:
+						invMatrix = invBindMatrices[index]
 						mostInfluence = (group.weight, index)
 
 
@@ -431,6 +428,7 @@ def WriteSkeleton(out, context, selected, bones, mesh, GLOBAL_MATRIX=None):
 
 		out += struct.pack("<iifffffff", parentIndex, index, pos.x, pos.y, pos.z, rot.x, rot.y, rot.z, rot.w)
 		out += struct.pack("<ffffff", cube[0], cube[1], cube[2], cube[3], cube[4], cube[5])
+
 
 def WriteCollision(out, context, selected, GLOBAL_MATRIX=None):
 	
