@@ -56,6 +56,7 @@ class YUK2Include(bpy.types.Panel):
 
         layout.prop(operator, "exportMesh")
         layout.prop(operator, "exportAnim")
+        layout.prop(operator, "exportCollision")
 
 
 class Exportyuk(bpy.types.Operator, ExportHelper):
@@ -69,12 +70,17 @@ class Exportyuk(bpy.types.Operator, ExportHelper):
     exportMesh: BoolProperty(
             name="Export mesh",
             description="Export Mesh only",
-            default=False,
+            default=True,
             )
     exportAnim: BoolProperty(
             name="Export Animation",
             description="Export current animation",
-            default=True,
+            default=False,
+            )
+    exportCollision: BoolProperty(
+            name="Export Collision mesh",
+            description="Export collison mesh",
+            default=False,
             )
 
 
