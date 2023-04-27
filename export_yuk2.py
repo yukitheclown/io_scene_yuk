@@ -4,6 +4,7 @@ import shutil
 import zlib
 import bpy
 import mathutils
+import math
 import bpy_extras.io_utils
 from bpy_extras import node_shader_utils
 
@@ -241,8 +242,10 @@ def WriteFile(out, context, bones, GLOBAL_MATRIX=None):
 
 
 			weights.sort(key=lambda tup: tup[0], reverse=True)
+		    
 
-			out += struct.pack("<4f", weights[0][0], weights[1][0], weights[2][0], weights[3][0])
+			out += struct.pack("<4f", 1 - (weights[1][0] + weights[2][0] + weights[3][0]), 
+				weights[1][0], weights[2][0], weights[3][0])
 			out += struct.pack("<4f", weights[0][1], weights[1][1], weights[2][1], weights[3][1])
 
 
@@ -265,8 +268,6 @@ def WriteFile(out, context, bones, GLOBAL_MATRIX=None):
 
 
 def WriteAnimation(out, action, armatureObj, bones, GLOBAL_MATRIX=None):
-
-	armatureMatrix = GLOBAL_MATRIX @ armatureObj.matrix_world
 
 	endFrame = action.frame_range[1]
 
@@ -420,7 +421,7 @@ def WriteSkeleton(out, context, selected, bones, mesh, GLOBAL_MATRIX=None):
 		if armatureBone.parent:
 			parentIndex = bones.get(armatureBone.parent.name)
 
-		pos, rot, scale = relativeMatrices[index].decompose()
+		pos, rot, scale = (relativeMatrices[index]).decompose()
 
 		cube = cubes[bones.get(armatureBone.name)]
 
@@ -428,8 +429,7 @@ def WriteSkeleton(out, context, selected, bones, mesh, GLOBAL_MATRIX=None):
 		cube[4] -= cube[1]
 		cube[5] -= cube[2]
 
-		out += struct.pack("<iiffffffffff", parentIndex, index, pos.x, pos.y, pos.z, rot.x, rot.y, rot.z, 
-			rot.w, scale.x, scale.y, scale.z)
+		out += struct.pack("<iifffffff", parentIndex, index, pos.x, pos.y, pos.z, rot.x, rot.y, rot.z, rot.w)
 		out += struct.pack("<ffffff", cube[0], cube[1], cube[2], cube[3], cube[4], cube[5])
 
 
