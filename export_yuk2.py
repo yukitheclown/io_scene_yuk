@@ -266,6 +266,8 @@ def WriteFile(out, context, bones, GLOBAL_MATRIX=None):
 
 def WriteAnimation(out, action, armatureObj, bones, GLOBAL_MATRIX=None):
 
+	armatureMatrix = GLOBAL_MATRIX @ armatureObj.matrix_world
+
 	endFrame = action.frame_range[1]
 
 	boneKeyframes = [None] * len(armatureObj.pose.bones)
@@ -426,7 +428,8 @@ def WriteSkeleton(out, context, selected, bones, mesh, GLOBAL_MATRIX=None):
 		cube[4] -= cube[1]
 		cube[5] -= cube[2]
 
-		out += struct.pack("<iifffffff", parentIndex, index, pos.x, pos.y, pos.z, rot.x, rot.y, rot.z, rot.w)
+		out += struct.pack("<iiffffffffff", parentIndex, index, pos.x, pos.y, pos.z, rot.x, rot.y, rot.z, 
+			rot.w, scale.x, scale.y, scale.z)
 		out += struct.pack("<ffffff", cube[0], cube[1], cube[2], cube[3], cube[4], cube[5])
 
 
