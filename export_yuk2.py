@@ -434,39 +434,63 @@ def WriteSkeleton(out, context, selected, bones, mesh, GLOBAL_MATRIX=None):
 
 
 def WriteCollision(out, context, selected, GLOBAL_MATRIX=None):
+
+	out += struct.pack("<i", len(context.selected_objects))
+
+	for selected in context.selected_objects:
 	
-	mesh = GetMesh(selected, context, GLOBAL_MATRIX)
-	mesh.calc_normals_split()
-	verts = mesh.vertices
+		mesh = GetMesh(selected, context, GLOBAL_MATRIX)
+		# mesh = selected.to_mesh(preserve_all_data_layers=True, depsgraph=None)
 
-	cubes = [[float("inf"), float("inf"), float("inf"),
-	-float("inf"), -float("inf"), -float("inf")] for i in range(0, len(selected.vertex_groups))]
+		mesh.calc_normals_split()
+		verts = mesh.vertices
 
-	for v in verts:
-		if len(v.groups) > 0:
-			for group in v.groups:
+		cube = [float("inf"), float("inf"), float("inf"),
+		-float("inf"), -float("inf"), -float("inf")]
 
-				if v.co[0] < cubes[group.group][0]:
-					cubes[group.group][0] = v.co[0]			
-				if v.co[1] < cubes[group.group][1]:
-					cubes[group.group][1] = v.co[1]			
-				if v.co[2] < cubes[group.group][2]:
-					cubes[group.group][2] = v.co[2]			
-				if v.co[0] > cubes[group.group][0]:
-					cubes[group.group][3] = v.co[0]			
-				if v.co[1] > cubes[group.group][1]:
-					cubes[group.group][4] = v.co[1]			
-				if v.co[2] > cubes[group.group][2]:
-					cubes[group.group][5] = v.co[2]			
-
+		for v in verts:
+			if v.co[0] < cube[0]:
+				cube[0] = v.co[0]			
+			if v.co[1] < cube[1]:
+				cube[1] = v.co[1]			
+			if v.co[2] < cube[2]:
+				cube[2] = v.co[2]			
+			if v.co[0] > cube[3]:
+				cube[3] = v.co[0]			
+			if v.co[1] > cube[4]:
+				cube[4] = v.co[1]			
+			if v.co[2] > cube[5]:
+				cube[5] = v.co[2]			
 
 
-	out += struct.pack("<i", len(cubes) )
-	for cube in cubes:
 		cube[3] -= cube[0]
 		cube[4] -= cube[1]
 		cube[5] -= cube[2]
 		out += struct.pack("<ffffff", cube[0], cube[1], cube[2], cube[3], cube[4], cube[5])
+
+
+		vertMap = {}
+		uniqueVertsArr = []
+		
+		for vert in verts:
+			
+			vertex = mathutils.Vector(vert.co).to_4d()
+			vertex.freeze()
+			val = vertMap.get(vertex)
+			if val == None:
+				vertMap[vertex] = 1 
+				uniqueVertsArr.append(vertex)
+
+		out += struct.pack("<i", len(uniqueVertsArr))
+
+		for vert in uniqueVertsArr:
+			out += struct.pack("<fff", vert.x, vert.y, vert.z)
+
+		pos, rot, scale = (GLOBAL_MATRIX @ selected.matrix_world).decompose()
+		out += struct.pack("<ffffffffff", pos.x, pos.y, pos.z, rot.x, rot.y, rot.z, rot.w,scale.x, scale.y, scale.z)
+		# out += struct.pack("<ffff", rot.x, rot.y, rot.z, rot.w)
+
+
 
 def Export(operator, context, filepath, globalMatrix=None, exportAnim=True, exportMesh=True, exportCollision=False):
 
